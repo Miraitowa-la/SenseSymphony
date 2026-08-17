@@ -1,0 +1,6 @@
+dependencies:
+  idf:
+    version: ">=5.3"
+  espressif/esp-dl: ^3.3.6
+  espressif/hand_detect: ~0.1.1
+  espressif/hand_gesture_recognition: ^0.1.2

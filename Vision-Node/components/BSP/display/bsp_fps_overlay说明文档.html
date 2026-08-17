@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BSP FPS Overlay 说明文档</title>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --paper: #ffffff;
+      --text: #1f2937;
+      --muted: #5b6778;
+      --line: #d8dee8;
+      --primary: #0f766e;
+      --soft: #e7f5f3;
+      --warn: #8a5a00;
+      --warn-soft: #fff4d6;
+      --code-bg: #111827;
+      --code-text: #e5e7eb;
+      --head: #eef2f7;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", Arial, sans-serif;
+      line-height: 1.72;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 290px minmax(0, 1fr);
+      max-width: 1440px;
+      margin: 0 auto;
+      min-height: 100vh;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      overflow: auto;
+      padding: 28px 20px;
+      border-right: 1px solid var(--line);
+      background: #f0f4f8;
+    }
+
+    nav h2 {
+      margin: 0 0 14px;
+      font-size: 18px;
+      color: var(--primary);
+    }
+
+    nav a {
+      display: block;
+      padding: 5px 0;
+      color: #344054;
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    nav a:hover { color: var(--primary); }
+
+    main {
+      max-width: 1040px;
+      width: 100%;
+      padding: 36px 44px 72px;
+      background: var(--paper);
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: 34px;
+      line-height: 1.25;
+      color: #111827;
+    }
+
+    h2 {
+      margin-top: 42px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+      font-size: 25px;
+      color: #172033;
+    }
+
+    h3 {
+      margin-top: 28px;
+      font-size: 20px;
+      color: #223043;
+    }
+
+    p { margin: 12px 0; }
+
+    .lead {
+      font-size: 16px;
+      color: var(--muted);
+    }
+
+    .note,
+    .warning {
+      margin: 18px 0;
+      padding: 14px 16px;
+      border-left: 4px solid var(--primary);
+      background: var(--soft);
+      border-radius: 6px;
+    }
+
+    .warning {
+      border-left-color: var(--warn);
+      background: var(--warn-soft);
+      color: #4b3500;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 22px;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 9px 11px;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--head);
+      text-align: left;
+      color: #263445;
+    }
+
+    code {
+      font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+      font-size: 0.95em;
+      background: #edf2f7;
+      color: #18212f;
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+
+    pre {
+      overflow: auto;
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 16px;
+      border-radius: 8px;
+      line-height: 1.5;
+      font-size: 13px;
+      margin: 16px 0 22px;
+    }
+
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      border-radius: 0;
+      white-space: pre;
+    }
+
+    ul, ol { padding-left: 24px; }
+    li { margin: 5px 0; }
+
+    @media (max-width: 960px) {
+      .layout { display: block; }
+      nav {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+      main { padding: 26px 20px 56px; }
+      h1 { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <nav>
+      <h2>目录</h2>
+      <a href="#overview">1. 模块概览</a>
+      <a href="#files">2. 模块组成</a>
+      <a href="#config">3. 配置结构体</a>
+      <a href="#flow">4. 工作流程</a>
+      <a href="#api">5. 函数说明</a>
+      <a href="#examples">6. 使用示例</a>
+      <a href="#notes">7. 注意事项</a>
+    </nav>
+
+    <main>
+      <h1>BSP FPS Overlay 说明文档</h1>
+      <p class="lead">本文档说明 RGB565 FPS 叠加显示工具。该模块负责统计帧率，并在指定画面区域内绘制 <code>FPS:xx.x</code> 文本。它只依赖 LCD 绘图接口，不依赖具体摄像头分辨率。</p>
+
+      <div class="note">FPS 叠加层适合摄像头预览、动态图像刷新、视频流显示等场景。应用层只需要在每帧成功显示后调用计数函数，再调用绘制函数即可。</div>
+
+      <h2 id="overview">1. 模块概览</h2>
+      <table>
+        <tr><th>条目</th><th>说明</th></tr>
+        <tr><td>像素格式</td><td>RGB565</td></tr>
+        <tr><td>字体</td><td>内置 5x7 点阵字体，仅包含 FPS 文本所需字符</td></tr>
+        <tr><td>显示内容</td><td><code>FPS:xx.x</code></td></tr>
+        <tr><td>统计单位</td><td>0.1 FPS，例如 306 表示 30.6 FPS</td></tr>
+        <tr><td>位置模式</td><td>左上、右上、左下、右下、自定义绝对坐标</td></tr>
+        <tr><td>开关控制</td><td>支持运行期启用/关闭显示</td></tr>
+      </table>
+
+      <h2 id="files">2. 模块组成</h2>
+      <table>
+        <tr><th>文件</th><th>职责</th></tr>
+        <tr><td><code>bsp_fps_overlay.h</code></td><td>声明配置结构体、位置枚举和 FPS 叠加层 API。</td></tr>
+        <tr><td><code>bsp_fps_overlay.c</code></td><td>实现 FPS 统计、点阵字体绘制、位置计算、开关控制和 LCD 提交。</td></tr>
+        <tr><td><code>bsp_fps_overlay说明文档.html</code></td><td>本说明文档。</td></tr>
+      </table>
+
+      <h2 id="config">3. 配置结构体</h2>
+      <pre><code>typedef struct {
+    int area_x;
+    int area_y;
+    int area_w;
+    int area_h;
+    int margin_x;
+    int margin_y;
+    int custom_x;
+    int custom_y;
+    uint8_t scale;
+    uint16_t bg_color;
+    uint16_t label_color;
+    uint16_t value_color;
+    bsp_fps_overlay_align_t align;
+    bool enabled;
+} bsp_fps_overlay_config_t;</code></pre>
+
+      <table>
+        <tr><th>字段</th><th>说明</th></tr>
+        <tr><td><code>area_x / area_y</code></td><td>绑定画面区域左上角坐标。</td></tr>
+        <tr><td><code>area_w / area_h</code></td><td>绑定画面区域尺寸。角落定位会基于该区域计算。</td></tr>
+        <tr><td><code>margin_x / margin_y</code></td><td>使用角落定位时，相对区域边缘的边距。</td></tr>
+        <tr><td><code>custom_x / custom_y</code></td><td>自定义模式下使用的绝对 LCD 坐标。</td></tr>
+        <tr><td><code>scale</code></td><td>5x7 字体缩放倍数。传 0 时使用默认值 3。</td></tr>
+        <tr><td><code>bg_color</code></td><td>叠加层背景色，RGB565。</td></tr>
+        <tr><td><code>label_color</code></td><td><code>FPS:</code> 标签颜色，RGB565。</td></tr>
+        <tr><td><code>value_color</code></td><td>帧率数值颜色，RGB565。</td></tr>
+        <tr><td><code>align</code></td><td>显示位置。</td></tr>
+        <tr><td><code>enabled</code></td><td>是否启用绘制。</td></tr>
+      </table>
+
+      <h3>3.1 位置枚举</h3>
+      <pre><code>typedef enum {
+    BSP_FPS_OVERLAY_ALIGN_TOP_LEFT = 0,
+    BSP_FPS_OVERLAY_ALIGN_TOP_RIGHT,
+    BSP_FPS_OVERLAY_ALIGN_BOTTOM_LEFT,
+    BSP_FPS_OVERLAY_ALIGN_BOTTOM_RIGHT,
+    BSP_FPS_OVERLAY_ALIGN_CUSTOM,
+} bsp_fps_overlay_align_t;</code></pre>
+
+      <h2 id="flow">4. 工作流程</h2>
+      <ol>
+        <li>调用 <code>bsp_fps_overlay_init()</code> 初始化配置和内部 RGB565 缓冲区。</li>
+        <li>每次画面成功刷新到 LCD 后调用 <code>bsp_fps_overlay_count_frame()</code>。</li>
+        <li>模块每约 1 秒更新一次 FPS 统计值。</li>
+        <li>调用 <code>bsp_fps_overlay_draw()</code>，模块根据位置设置绘制 FPS 文本。</li>
+        <li>需要隐藏 FPS 时调用 <code>bsp_fps_overlay_set_enabled(false)</code>。</li>
+      </ol>
+
+      <h2 id="api">5. 函数说明</h2>
+      <h3><code>bsp_fps_overlay_init(const bsp_fps_overlay_config_t *config)</code></h3>
+      <p>初始化 FPS 叠加层。传入 <code>NULL</code> 时使用默认配置。初始化会分配内部 RGB565 绘制缓冲区，并重置 FPS 统计窗口。</p>
+      <pre><code>bsp_fps_overlay_config_t config = {
+    .area_x = 0,
+    .area_y = 320,
+    .area_w = 800,
+    .area_h = 640,
+    .margin_x = 12,
+    .margin_y = 12,
+    .scale = 3,
+    .bg_color = 0x0000,
+    .label_color = 0xFFE0,
+    .value_color = 0xFFFF,
+    .align = BSP_FPS_OVERLAY_ALIGN_BOTTOM_RIGHT,
+    .enabled = true,
+};
+ESP_ERROR_CHECK(bsp_fps_overlay_init(&config));</code></pre>
+
+      <h3><code>bsp_fps_overlay_deinit()</code></h3>
+      <p>释放内部缓冲区。普通持续显示场景通常不需要频繁调用。</p>
+      <pre><code>ESP_ERROR_CHECK(bsp_fps_overlay_deinit());</code></pre>
+
+      <h3><code>bsp_fps_overlay_set_enabled(bool enabled)</code></h3>
+      <p>运行期打开或关闭 FPS 绘制。关闭后统计仍可继续进行，但 <code>bsp_fps_overlay_draw()</code> 不会向 LCD 提交像素。</p>
+      <pre><code>bsp_fps_overlay_set_enabled(false);
+bsp_fps_overlay_set_enabled(true);</code></pre>
+
+      <h3><code>bsp_fps_overlay_is_enabled()</code></h3>
+      <p>查询当前是否启用 FPS 显示。</p>
+      <pre><code>if (bsp_fps_overlay_is_enabled()) {
+    ESP_LOGI("app", "FPS overlay is visible");
+}</code></pre>
+
+      <h3><code>bsp_fps_overlay_set_area(int x, int y, int w, int h)</code></h3>
+      <p>设置绑定画面区域。该区域用于计算左上、右上、左下、右下等相对位置，适配不同分辨率或不同摆放位置的画面。</p>
+      <pre><code>ESP_ERROR_CHECK(bsp_fps_overlay_set_area(0, 0, 800, 1280));</code></pre>
+
+      <h3><code>bsp_fps_overlay_set_position(bsp_fps_overlay_align_t align, int margin_x, int margin_y)</code></h3>
+      <p>设置角落位置和边距。</p>
+      <pre><code>ESP_ERROR_CHECK(bsp_fps_overlay_set_position(BSP_FPS_OVERLAY_ALIGN_TOP_RIGHT, 16, 16));</code></pre>
+
+      <h3><code>bsp_fps_overlay_set_custom_position(int x, int y)</code></h3>
+      <p>设置自定义绝对坐标。调用后位置模式自动切换为 <code>BSP_FPS_OVERLAY_ALIGN_CUSTOM</code>。</p>
+      <pre><code>ESP_ERROR_CHECK(bsp_fps_overlay_set_custom_position(20, 20));</code></pre>
+
+      <h3><code>bsp_fps_overlay_count_frame()</code></h3>
+      <p>通知模块“已经成功显示一帧”。该函数负责累计帧数并按时间窗口计算 FPS。</p>
+      <pre><code>bsp_fps_overlay_count_frame();</code></pre>
+
+      <h3><code>bsp_fps_overlay_get_fps_x10()</code></h3>
+      <p>获取当前 FPS，单位为 0.1 FPS。</p>
+      <pre><code>uint32_t fps_x10 = bsp_fps_overlay_get_fps_x10();
+ESP_LOGI("app", "fps=%lu.%lu",
+         (unsigned long)(fps_x10 / 10),
+         (unsigned long)(fps_x10 % 10));</code></pre>
+
+      <h3><code>bsp_fps_overlay_draw()</code></h3>
+      <p>绘制 FPS 叠加层。内部会调用 LCD 绘图函数并等待传输完成。</p>
+      <pre><code>ESP_ERROR_CHECK(bsp_fps_overlay_draw());</code></pre>
+
+      <h3><code>bsp_fps_overlay_draw_to_rgb565(uint16_t *frame_buffer, int frame_w, int frame_h, int stride_pixels, int screen_x, int screen_y)</code></h3>
+      <p>将 FPS 叠加层合成到已有的 RGB565 画面缓冲区中，不直接向 LCD 提交刷新。该接口适合摄像头预览等高帧率场景，可以先在帧缓冲内绘制 FPS，再一次性提交整帧，避免额外的 LCD 小区域刷新。</p>
+      <pre><code>bsp_fps_overlay_count_frame();
+ESP_ERROR_CHECK(bsp_fps_overlay_draw_to_rgb565((uint16_t *)frame.buffer,
+                                               frame.width,
+                                               frame.height,
+                                               frame.width,
+                                               0,
+                                               320));</code></pre>
+
+      <h2 id="examples">6. 使用示例</h2>
+      <h3>6.1 绑定 800x640 预览区域</h3>
+      <pre><code>bsp_fps_overlay_config_t fps_config = {
+    .area_x = 0,
+    .area_y = 320,
+    .area_w = 800,
+    .area_h = 640,
+    .margin_x = 12,
+    .margin_y = 12,
+    .scale = 3,
+    .bg_color = 0x0000,
+    .label_color = 0xFFE0,
+    .value_color = 0xFFFF,
+    .align = BSP_FPS_OVERLAY_ALIGN_BOTTOM_RIGHT,
+    .enabled = true,
+};
+ESP_ERROR_CHECK(bsp_fps_overlay_init(&fps_config));</code></pre>
+
+      <h3>6.2 在显示循环中更新 FPS</h3>
+      <pre><code>// 高帧率预览建议先将 FPS 合成到帧缓冲区，再一次性提交 LCD。
+bsp_fps_overlay_count_frame();
+ESP_ERROR_CHECK(bsp_fps_overlay_draw_to_rgb565((uint16_t *)frame.buffer,
+                                               frame.width,
+                                               frame.height,
+                                               frame.width,
+                                               0,
+                                               320));
+ESP_ERROR_CHECK(bsp_lcd_draw_bitmap(0, 320, frame.width, 320 + frame.height, frame.buffer));
+ESP_ERROR_CHECK(bsp_lcd_wait_flush_done(portMAX_DELAY));</code></pre>
+
+      <h3>6.3 切换位置</h3>
+      <pre><code>ESP_ERROR_CHECK(bsp_fps_overlay_set_position(BSP_FPS_OVERLAY_ALIGN_TOP_LEFT, 8, 8));
+ESP_ERROR_CHECK(bsp_fps_overlay_set_position(BSP_FPS_OVERLAY_ALIGN_BOTTOM_RIGHT, 12, 12));
+ESP_ERROR_CHECK(bsp_fps_overlay_set_custom_position(100, 100));</code></pre>
+
+      <h3>6.4 开启和关闭显示</h3>
+      <pre><code>bsp_fps_overlay_set_enabled(false); // 隐藏
+bsp_fps_overlay_set_enabled(true);  // 显示</code></pre>
+
+      <h2 id="notes">7. 注意事项</h2>
+      <ul>
+        <li>该模块默认绘制 RGB565 像素，要求 LCD 绘图接口也按 RGB565 接收数据。</li>
+        <li><code>bsp_fps_overlay_draw()</code> 会等待 LCD 区域刷新完成，因此它会占用一小段显示时间。</li>
+        <li>对于实时视频预览，优先使用 <code>bsp_fps_overlay_draw_to_rgb565()</code>，可以将 FPS 和主画面合并为一次 LCD 刷新。</li>
+        <li>显示关闭后，<code>bsp_fps_overlay_count_frame()</code> 仍会继续统计帧率。</li>
+        <li>绑定区域可以是整屏，也可以是摄像头预览区域。角落定位全部基于绑定区域计算。</li>
+        <li>自定义位置是 LCD 绝对坐标，不受绑定区域边距影响。</li>
+        <li>如果修改字体缩放倍数，应重新调用 <code>bsp_fps_overlay_init()</code> 或扩展接口以重建缓冲区。</li>
+      </ul>
+    </main>
+  </div>
+</body>
+</html>

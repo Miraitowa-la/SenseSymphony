@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI UART Comm 主从通信中间件说明文档</title>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --paper: #ffffff;
+      --text: #1f2937;
+      --muted: #5b6778;
+      --line: #d8dee8;
+      --primary: #0f766e;
+      --soft: #e7f5f3;
+      --warn: #8a5a00;
+      --warn-soft: #fff4d6;
+      --code-bg: #111827;
+      --code-text: #e5e7eb;
+      --head: #eef2f7;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", Arial, sans-serif;
+      line-height: 1.72;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      max-width: 1440px;
+      margin: 0 auto;
+      min-height: 100vh;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      overflow: auto;
+      padding: 28px 20px;
+      border-right: 1px solid var(--line);
+      background: #f0f4f8;
+    }
+
+    nav h2 {
+      margin: 0 0 14px;
+      font-size: 18px;
+      color: var(--primary);
+    }
+
+    nav a {
+      display: block;
+      padding: 5px 0;
+      color: #344054;
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    nav a:hover { color: var(--primary); }
+
+    main {
+      max-width: 1040px;
+      width: 100%;
+      padding: 36px 44px 72px;
+      background: var(--paper);
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: 34px;
+      line-height: 1.25;
+      color: #111827;
+    }
+
+    h2 {
+      margin-top: 42px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+      font-size: 25px;
+      color: #172033;
+    }
+
+    h3 {
+      margin-top: 28px;
+      font-size: 20px;
+      color: #223043;
+    }
+
+    p { margin: 12px 0; }
+
+    .lead {
+      font-size: 16px;
+      color: var(--muted);
+    }
+
+    .note,
+    .warning {
+      margin: 18px 0;
+      padding: 14px 16px;
+      border-left: 4px solid var(--primary);
+      background: var(--soft);
+      border-radius: 6px;
+    }
+
+    .warning {
+      border-left-color: var(--warn);
+      background: var(--warn-soft);
+      color: #4b3500;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 22px;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 9px 11px;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--head);
+      text-align: left;
+      color: #263445;
+    }
+
+    code {
+      font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+      font-size: 0.95em;
+      background: #edf2f7;
+      color: #18212f;
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+
+    pre {
+      overflow: auto;
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 16px;
+      border-radius: 8px;
+      line-height: 1.5;
+      font-size: 13px;
+      margin: 16px 0 22px;
+    }
+
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      border-radius: 0;
+      white-space: pre;
+    }
+
+    ul, ol { padding-left: 24px; }
+    li { margin: 5px 0; }
+
+    @media (max-width: 960px) {
+      .layout { display: block; }
+      nav {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+      main { padding: 26px 20px 56px; }
+      h1 { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <nav>
+      <h2>目录</h2>
+      <a href="#overview">1. 模块概述</a>
+      <a href="#files">2. 文件组成</a>
+      <a href="#hardware">3. 硬件连接</a>
+      <a href="#data">4. 数据结构</a>
+      <a href="#protocol">5. 串口协议</a>
+      <a href="#api-init">6. 初始化 API</a>
+      <a href="#api-master">7. 主机 API</a>
+      <a href="#api-slave">8. 从机 API</a>
+      <a href="#examples">9. 使用示例</a>
+      <a href="#codes">10. 编码定义</a>
+      <a href="#notes">11. 注意事项</a>
+    </nav>
+
+    <main>
+      <h1>AI UART Comm 主从通信中间件说明文档</h1>
+      <p class="lead">本文档说明 <code>ai_uart_comm</code> 中间件的职责、数据格式、主从调用方式和串口协议。该模块用于两块 ESP32-P4 之间的有线 UART 通信：从机负责实时执行 FACE/EXPR/HAND/GEST 识别，主机负责查询当前状态、切换识别模式并读取结构化识别结果。</p>
+
+      <div class="note">应用层只需要操作结构体和函数，不需要在 <code>main_master.c</code> 或 <code>main_slave.c</code> 中手写串口命令解析、字符串拼接或协议状态机。</div>
+
+      <h2 id="overview">1. 模块概述</h2>
+      <table>
+        <tr><th>条目</th><th>说明</th></tr>
+        <tr><td>模块名称</td><td><code>ai_uart_comm</code></td></tr>
+        <tr><td>所在路径</td><td><code>components/Middlewares/ai_uart_comm</code></td></tr>
+        <tr><td>通信接口</td><td>UART，有线连接</td></tr>
+        <tr><td>默认串口</td><td><code>UART_NUM_1</code></td></tr>
+        <tr><td>默认引脚</td><td>TX: GPIO4，RX: GPIO5，由应用层配置传入</td></tr>
+        <tr><td>默认波特率</td><td>115200，由应用层配置传入</td></tr>
+        <tr><td>数据风格</td><td>主机命令 + 从机快照响应</td></tr>
+        <tr><td>应用层数据</td><td><code>ai_uart_snapshot_t</code> 结构体</td></tr>
+      </table>
+
+      <h2 id="files">2. 文件组成</h2>
+      <table>
+        <tr><th>文件</th><th>职责</th></tr>
+        <tr><td><code>CMakeLists.txt</code></td><td>将 <code>ai_uart_comm.c</code> 注册为 ESP-IDF 组件，并声明依赖 <code>driver</code>。</td></tr>
+        <tr><td><code>include/ai_uart_comm.h</code></td><td>对外声明模式枚举、命令枚举、识别快照结构体、主机 API、从机 API 和初始化函数。</td></tr>
+        <tr><td><code>ai_uart_comm.c</code></td><td>实现 UART 初始化、命令发送、命令解析、快照发送、快照接收和手势字符串到编码的转换。</td></tr>
+        <tr><td><code>ai_uart_comm说明文档.html</code></td><td>本说明文档。</td></tr>
+      </table>
+
+      <h2 id="hardware">3. 硬件连接</h2>
+      <p>当前工程在主机和从机中均使用 UART1，默认配置为 TX GPIO4、RX GPIO5。两块板连接时需要交叉 TX/RX，并共地。</p>
+      <pre><code>主机 GPIO4(TX) -> 从机 GPIO5(RX)
+主机 GPIO5(RX) -> 从机 GPIO4(TX)
+主机 GND       -> 从机 GND</code></pre>
+      <div class="warning">不要把两块板的 TX 直接接 TX、RX 直接接 RX。UART 是点对点异步串口，必须 TX 接对方 RX。</div>
+
+      <h2 id="data">4. 数据结构</h2>
+      <h3><code>ai_uart_config_t</code></h3>
+      <p>初始化 UART 使用的配置，由主机和从机各自传入。模块不固定硬件引脚，方便后续换线。</p>
+      <pre><code>typedef struct {
+    uart_port_t port;
+    gpio_num_t tx_gpio;
+    gpio_num_t rx_gpio;
+    int baud_rate;
+} ai_uart_config_t;</code></pre>
+
+      <h3><code>ai_uart_snapshot_t</code></h3>
+      <p>从机返回给主机的一次识别快照。一个快照包含当前模式、更新序号和多个识别目标。</p>
+      <pre><code>typedef struct {
+    uint32_t sequence;
+    ai_uart_mode_t mode;
+    size_t object_count;
+    ai_uart_object_t objects[AI_UART_MAX_OBJECTS];
+} ai_uart_snapshot_t;</code></pre>
+
+      <h3><code>ai_uart_object_t</code></h3>
+      <p>一个识别目标的数据。FACE/EXPR 表示一个人脸目标，HAND/GEST 表示一个手部目标。</p>
+      <pre><code>typedef struct {
+    uint16_t x10;
+    uint16_t y10;
+    int16_t action;
+    uint16_t detect_confidence;
+    uint16_t action_confidence;
+} ai_uart_object_t;</code></pre>
+
+      <table>
+        <tr><th>字段</th><th>单位/范围</th><th>说明</th></tr>
+        <tr><td><code>x10</code></td><td>0~1000</td><td>目标中心点 X 百分比 x10。例如 500 表示画面宽度 50.0%。</td></tr>
+        <tr><td><code>y10</code></td><td>0~1000</td><td>目标中心点 Y 百分比 x10。例如 250 表示画面高度 25.0%。</td></tr>
+        <tr><td><code>action</code></td><td>-1 或编码值</td><td>EXPR 模式为表情编码，GEST 模式为手势编码；FACE/HAND 纯检测模式为 -1。</td></tr>
+        <tr><td><code>detect_confidence</code></td><td>0~1000</td><td>检测置信度 x1000。FACE/HAND 纯检测模式当前按需求不发送置信度，置 0。</td></tr>
+        <tr><td><code>action_confidence</code></td><td>0~1000</td><td>动作/手势置信度 x1000。无动作识别时置 0。</td></tr>
+      </table>
+
+      <h2 id="protocol">5. 串口协议</h2>
+      <p>模块内部使用文本行协议，便于串口助手调试。应用层不需要直接拼接这些字符串。</p>
+
+      <h3>5.1 主机命令</h3>
+      <table>
+        <tr><th>命令</th><th>说明</th></tr>
+        <tr><td><code>GET\n</code></td><td>查询从机当前快照。</td></tr>
+        <tr><td><code>NEXT\n</code></td><td>从机切换到下一个模式，顺序为 FACE -> EXPR -> HAND -> GEST -> FACE。</td></tr>
+        <tr><td><code>SET,0\n</code></td><td>切换到 FACE 模式。</td></tr>
+        <tr><td><code>SET,1\n</code></td><td>切换到 EXPR 模式。</td></tr>
+        <tr><td><code>SET,2\n</code></td><td>切换到 HAND 模式。</td></tr>
+        <tr><td><code>SET,3\n</code></td><td>切换到 GEST 模式。</td></tr>
+      </table>
+
+      <h3>5.2 从机响应</h3>
+      <p>从机先发送快照头，再按目标数量发送目标行。</p>
+      <pre><code>R,&lt;sequence&gt;,&lt;mode&gt;,&lt;object_count&gt;
+O,&lt;x10&gt;,&lt;y10&gt;,&lt;action&gt;,&lt;detect_confidence&gt;,&lt;action_confidence&gt;
+O,&lt;x10&gt;,&lt;y10&gt;,&lt;action&gt;,&lt;detect_confidence&gt;,&lt;action_confidence&gt;</code></pre>
+
+      <p>例如 GEST 模式检测到两个手部目标：</p>
+      <pre><code>R,128,3,2
+O,321,456,6,912,887
+O,701,430,5,853,801</code></pre>
+
+      <h2 id="api-init">6. 初始化 API</h2>
+      <h3><code>ai_uart_init(const ai_uart_config_t *config)</code></h3>
+      <p>初始化 UART 驱动、波特率、数据位、停止位、流控和 TX/RX 引脚。主机和从机都必须先调用一次。</p>
+      <pre><code>const ai_uart_config_t uart_config = {
+    .port = UART_NUM_1,
+    .tx_gpio = GPIO_NUM_4,
+    .rx_gpio = GPIO_NUM_5,
+    .baud_rate = 115200,
+};
+ESP_ERROR_CHECK(ai_uart_init(&uart_config));</code></pre>
+
+      <h2 id="api-master">7. 主机 API</h2>
+      <h3><code>ai_uart_master_send_get()</code></h3>
+      <p>向从机发送查询命令。调用后需要周期性调用 <code>ai_uart_master_poll_snapshot()</code> 接收响应。</p>
+
+      <h3><code>ai_uart_master_send_next()</code></h3>
+      <p>要求从机切换到下一个识别模式。</p>
+
+      <h3><code>ai_uart_master_send_set_mode(ai_uart_mode_t mode)</code></h3>
+      <p>要求从机切换到指定模式。</p>
+      <pre><code>ESP_ERROR_CHECK(ai_uart_master_send_set_mode(AI_UART_MODE_GEST));</code></pre>
+
+      <h3><code>ai_uart_master_poll_snapshot(ai_uart_snapshot_t *snapshot)</code></h3>
+      <p>非阻塞接收从机数据。当收满一个完整快照时返回 <code>true</code>，并把数据写入 <code>snapshot</code>。</p>
+      <pre><code>ai_uart_snapshot_t snapshot;
+while (ai_uart_master_poll_snapshot(&snapshot)) {
+    ESP_LOGI(TAG, "seq=%lu mode=%s count=%u",
+             (unsigned long)snapshot.sequence,
+             ai_uart_mode_name(snapshot.mode),
+             (unsigned)snapshot.object_count);
+}</code></pre>
+
+      <h2 id="api-slave">8. 从机 API</h2>
+      <h3><code>ai_uart_slave_poll_command(ai_uart_command_t *command)</code></h3>
+      <p>非阻塞读取主机命令。当收到完整命令时返回 <code>true</code>。从机应用层根据命令类型决定查询、切换或设置模式。</p>
+
+      <h3><code>ai_uart_slave_send_snapshot(const ai_uart_snapshot_t *snapshot)</code></h3>
+      <p>把从机当前快照发送给主机。一次发送包含一行 <code>R</code> 头和若干行 <code>O</code> 目标数据。</p>
+
+      <h2 id="examples">9. 使用示例</h2>
+      <h3>9.1 主机周期查询</h3>
+      <pre><code>while (1) {
+    ESP_ERROR_CHECK(ai_uart_master_send_get());
+
+    ai_uart_snapshot_t snapshot;
+    while (ai_uart_master_poll_snapshot(&snapshot)) {
+        for (size_t i = 0; i &lt; snapshot.object_count; i++) {
+            const ai_uart_object_t *obj = &snapshot.objects[i];
+            ESP_LOGI(TAG, "x10=%u y10=%u action=%d",
+                     obj-&gt;x10, obj-&gt;y10, obj-&gt;action);
+        }
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(100));
+}</code></pre>
+
+      <h3>9.2 从机响应查询</h3>
+      <pre><code>ai_uart_command_t command;
+while (ai_uart_slave_poll_command(&command)) {
+    if (command.type == AI_UART_CMD_GET) {
+        ESP_ERROR_CHECK(ai_uart_slave_send_snapshot(&snapshot));
+    } else if (command.type == AI_UART_CMD_NEXT) {
+        mode = (ai_uart_mode_t)((mode + 1) % AI_UART_MODE_COUNT);
+    } else if (command.type == AI_UART_CMD_SET_MODE) {
+        mode = command.mode;
+    }
+}</code></pre>
+
+      <h2 id="codes">10. 编码定义</h2>
+      <h3>10.1 模式编码</h3>
+      <table>
+        <tr><th>编码</th><th>枚举</th><th>说明</th></tr>
+        <tr><td>0</td><td><code>AI_UART_MODE_FACE</code></td><td>面部检测</td></tr>
+        <tr><td>1</td><td><code>AI_UART_MODE_EXPR</code></td><td>面部表情识别</td></tr>
+        <tr><td>2</td><td><code>AI_UART_MODE_HAND</code></td><td>手部检测</td></tr>
+        <tr><td>3</td><td><code>AI_UART_MODE_GEST</code></td><td>手部动作/手势识别</td></tr>
+      </table>
+
+      <h3>10.2 表情编码</h3>
+      <table>
+        <tr><th>编码</th><th>说明</th></tr>
+        <tr><td>0</td><td>UNKNOWN，未知</td></tr>
+        <tr><td>1</td><td>NEUTRAL，中性</td></tr>
+        <tr><td>2</td><td>SMILE，微笑</td></tr>
+      </table>
+
+      <h3>10.3 手势编码</h3>
+      <table>
+        <tr><th>编码</th><th>手势名称</th></tr>
+        <tr><td>0</td><td>one</td></tr>
+        <tr><td>1</td><td>two</td></tr>
+        <tr><td>2</td><td>three</td></tr>
+        <tr><td>3</td><td>four</td></tr>
+        <tr><td>4</td><td>five</td></tr>
+        <tr><td>5</td><td>like</td></tr>
+        <tr><td>6</td><td>ok</td></tr>
+        <tr><td>7</td><td>no_gesture</td></tr>
+        <tr><td>8</td><td>call</td></tr>
+        <tr><td>9</td><td>dislike</td></tr>
+        <tr><td>10</td><td>no_hand</td></tr>
+        <tr><td>-1</td><td>unknown 或非动作识别模式</td></tr>
+      </table>
+
+      <h2 id="notes">11. 注意事项</h2>
+      <ul>
+        <li>本模块传输的是识别结果，不传输图像，因此 115200 波特率通常已经足够。需要更高查询频率时，可把主从两端波特率同时提高到 921600。</li>
+        <li><code>AI_UART_MAX_OBJECTS</code> 当前为 4，与检测结果数组容量保持一致。若后续要传更多目标，需要同时调整检测结果容量和通信数组容量。</li>
+        <li><code>x10</code>、<code>y10</code> 表示目标框中心点，不表示框宽高。若主机后续需要画框，需要扩展协议增加宽高字段。</li>
+        <li>FACE/HAND 纯检测模式按当前需求只发送坐标，检测置信度字段置 0。EXPR/GEST 模式才发送检测置信度和动作置信度。</li>
+        <li>主机接收函数是非阻塞的，应在主循环中高频调用，避免 UART 接收缓冲区堆积。</li>
+        <li>主机和从机必须共地，否则 UART 电平没有共同参考，通信会不稳定或完全失败。</li>
+      </ul>
+    </main>
+  </div>
+</body>
+</html>

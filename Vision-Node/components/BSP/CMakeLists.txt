@@ -1,0 +1,35 @@
+set(src_dirs
+	lcd
+	camera
+	display
+)
+set(include_dirs
+	lcd
+	camera
+	display
+)
+set(requires
+	driver
+	esp_lcd
+	esp_driver_cam
+	esp_driver_i2c
+	esp_driver_isp
+	esp_mm
+	esp_timer
+	esp_sccb_intf
+	esp_cam_sensor
+	espressif__i2c_bus
+	waveshare__esp_lcd_jd9365_10_1
+)
+
+idf_component_register(
+	SRC_DIRS
+	${src_dirs}
+	INCLUDE_DIRS
+	${include_dirs}
+	REQUIRES
+	${requires}
+)
+if(src_dirs)
+	component_compile_options(-ffast-math -O3 -Wno-error=format=-Wno-format)
+endif()

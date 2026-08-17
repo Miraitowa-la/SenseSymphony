@@ -1,0 +1,17 @@
+{
+	"pages": [
+		{ "path": "pages/index/index", "style": { "navigationBarTitleText": "\u82af\u9732\u8c37\u8001\u519c\u6c11" } },
+		{ "path": "pages/history/history", "style": { "navigationBarTitleText": "\u5f55\u5236\u5386\u53f2" } },
+		{ "path": "pages/record/record", "style": { "navigationBarTitleText": "\u5f55\u5236\u8be6\u60c5" } },
+		{ "path": "pages/mode2/index", "style": { "navigationBarTitleText": "\u6b4c\u66f2\u4e0e\u6210\u7ee9" } },
+		{ "path": "pages/songs/songs", "style": { "navigationBarTitleText": "\u66f2\u76ee\u7ba1\u7406" } },
+		{ "path": "pages/song-editor/song-editor", "style": { "navigationBarTitleText": "\u7f16\u8f91\u6211\u7684\u66f2\u8c31" } },
+		{ "path": "pages/scores/scores", "style": { "navigationBarTitleText": "\u6b4c\u66f2\u4e0e\u6210\u7ee9" } },
+		{ "path": "pages/coming-soon/coming-soon", "style": { "navigationBarTitleText": "\u6b4c\u66f2\u4e0e\u6210\u7ee9" } }
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "white",
+		"navigationBarBackgroundColor": "#161424",
+		"backgroundColor": "#161424"
+	}
+}

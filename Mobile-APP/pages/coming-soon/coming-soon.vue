@@ -1,0 +1,3 @@
+<template><view class="page"><text class="index">02</text><text class="title">歌曲与成绩</text><text class="copy">即将推出</text><button @click="back">返回首页</button></view></template>
+<script>export default { methods: { back() { uni.navigateBack() } } }</script>
+<style>.page { min-height: 100vh; padding: 160rpx 52rpx; background: #161424; color: #f8f6ff; box-sizing: border-box; } .index, .copy { display: block; color: #bfa7ff; } .title { display: block; margin: 26rpx 0; font-size: 56rpx; font-weight: 700; } button { margin: 70rpx 0; color: #171426; background: #c4a2ff; border: 0; border-radius: 18rpx; }</style>

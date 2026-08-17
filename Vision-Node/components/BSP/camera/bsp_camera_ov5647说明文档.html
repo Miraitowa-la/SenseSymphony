@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BSP Camera OV5647 说明文档</title>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --paper: #ffffff;
+      --text: #1f2937;
+      --muted: #5b6778;
+      --line: #d8dee8;
+      --primary: #0f766e;
+      --soft: #e7f5f3;
+      --warn: #8a5a00;
+      --warn-soft: #fff4d6;
+      --code-bg: #111827;
+      --code-text: #e5e7eb;
+      --head: #eef2f7;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", Arial, sans-serif;
+      line-height: 1.72;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 290px minmax(0, 1fr);
+      max-width: 1440px;
+      margin: 0 auto;
+      min-height: 100vh;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      overflow: auto;
+      padding: 28px 20px;
+      border-right: 1px solid var(--line);
+      background: #f0f4f8;
+    }
+
+    nav h2 {
+      margin: 0 0 14px;
+      font-size: 18px;
+      color: var(--primary);
+    }
+
+    nav a {
+      display: block;
+      padding: 5px 0;
+      color: #344054;
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    nav a:hover { color: var(--primary); }
+
+    main {
+      max-width: 1040px;
+      width: 100%;
+      padding: 36px 44px 72px;
+      background: var(--paper);
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: 34px;
+      line-height: 1.25;
+      color: #111827;
+    }
+
+    h2 {
+      margin-top: 42px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+      font-size: 25px;
+      color: #172033;
+    }
+
+    h3 {
+      margin-top: 28px;
+      font-size: 20px;
+      color: #223043;
+    }
+
+    p { margin: 12px 0; }
+
+    .lead {
+      font-size: 16px;
+      color: var(--muted);
+    }
+
+    .note,
+    .warning {
+      margin: 18px 0;
+      padding: 14px 16px;
+      border-left: 4px solid var(--primary);
+      background: var(--soft);
+      border-radius: 6px;
+    }
+
+    .warning {
+      border-left-color: var(--warn);
+      background: var(--warn-soft);
+      color: #4b3500;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 22px;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 9px 11px;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--head);
+      text-align: left;
+      color: #263445;
+    }
+
+    code {
+      font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+      font-size: 0.95em;
+      background: #edf2f7;
+      color: #18212f;
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+
+    pre {
+      overflow: auto;
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 16px;
+      border-radius: 8px;
+      line-height: 1.5;
+      font-size: 13px;
+      margin: 16px 0 22px;
+    }
+
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      border-radius: 0;
+      white-space: pre;
+    }
+
+    ul, ol { padding-left: 24px; }
+    li { margin: 5px 0; }
+
+    @media (max-width: 960px) {
+      .layout { display: block; }
+      nav {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+      main { padding: 26px 20px 56px; }
+      h1 { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <nav>
+      <h2>目录</h2>
+      <a href="#overview">1. 模块概览</a>
+      <a href="#files">2. 模块组成</a>
+      <a href="#params">3. 参数说明</a>
+      <a href="#flow">4. 工作流程</a>
+      <a href="#api">5. 函数说明</a>
+      <a href="#examples">6. 使用示例</a>
+      <a href="#notes">7. 注意事项</a>
+    </nav>
+
+    <main>
+      <h1>BSP Camera OV5647 说明文档</h1>
+      <p class="lead">本文档说明 OV5647 MIPI-CSI 摄像头 BSP 封装接口。该模块使用 <code>esp_cam_sensor</code> 检测和配置 OV5647，使用 <code>esp_driver_cam</code> 接收 MIPI-CSI 数据，并通过 <code>esp_driver_isp</code> 将 RAW8 转换为 RGB565 帧缓冲区。</p>
+
+      <div class="note">模块输出固定为 RGB565，适合直接提交给同为 RGB565 的 LCD 显示链路，也可作为后续图像处理输入。</div>
+
+      <h2 id="overview">1. 模块概览</h2>
+      <table>
+        <tr><th>条目</th><th>说明</th></tr>
+        <tr><td>摄像头型号</td><td>OV5647</td></tr>
+        <tr><td>输入接口</td><td>MIPI-CSI 2 lane</td></tr>
+        <tr><td>传感器输出</td><td>RAW8</td></tr>
+        <tr><td>BSP 输出</td><td>RGB565，2 字节/像素</td></tr>
+        <tr><td>默认格式</td><td><code>MIPI_2lane_24Minput_RAW8_800x640_50fps</code></td></tr>
+        <tr><td>默认分辨率</td><td>800 x 640</td></tr>
+        <tr><td>缓冲模型</td><td>双帧缓冲，free queue + ready queue</td></tr>
+      </table>
+
+      <h2 id="files">2. 模块组成</h2>
+      <table>
+        <tr><th>文件</th><th>职责</th></tr>
+        <tr><td><code>bsp_camera_ov5647.h</code></td><td>声明摄像头参数、帧结构体和对外 API。</td></tr>
+        <tr><td><code>bsp_camera_ov5647.c</code></td><td>实现 OV5647 检测、SCCB 初始化、CSI 控制器、ISP、帧缓冲队列和帧获取接口。</td></tr>
+        <tr><td><code>bsp_camera_ov5647说明文档.html</code></td><td>本说明文档。</td></tr>
+      </table>
+
+      <h2 id="params">3. 参数说明</h2>
+      <h3>3.1 图像参数</h3>
+      <table>
+        <tr><th>宏</th><th>值</th><th>说明</th></tr>
+        <tr><td><code>BSP_CAMERA_OV5647_H_RES</code></td><td>800</td><td>输出图像宽度</td></tr>
+        <tr><td><code>BSP_CAMERA_OV5647_V_RES</code></td><td>640</td><td>输出图像高度</td></tr>
+        <tr><td><code>BSP_CAMERA_OV5647_BITS_PER_PIXEL</code></td><td>16</td><td>RGB565 像素位宽</td></tr>
+        <tr><td><code>BSP_CAMERA_OV5647_BYTES_PER_PIXEL</code></td><td>2</td><td>每像素字节数</td></tr>
+        <tr><td><code>BSP_CAMERA_OV5647_FRAME_BUFFER_COUNT</code></td><td>3</td><td>内部帧缓冲数量</td></tr>
+      </table>
+
+      <h3>3.2 SCCB/I2C 参数</h3>
+      <table>
+        <tr><th>宏</th><th>值</th><th>说明</th></tr>
+        <tr><td><code>BSP_CAMERA_OV5647_SCCB_I2C_PORT</code></td><td>0</td><td>摄像头 SCCB 使用的 I2C 端口</td></tr>
+        <tr><td><code>BSP_CAMERA_OV5647_SCCB_SDA_GPIO</code></td><td>7</td><td>SCCB SDA GPIO</td></tr>
+        <tr><td><code>BSP_CAMERA_OV5647_SCCB_SCL_GPIO</code></td><td>8</td><td>SCCB SCL GPIO</td></tr>
+        <tr><td><code>BSP_CAMERA_OV5647_SCCB_CLK_HZ</code></td><td>100000</td><td>SCCB 时钟频率</td></tr>
+      </table>
+
+      <h3>3.3 帧结构体</h3>
+      <pre><code>typedef struct {
+    void *buffer;
+    size_t len;
+    uint32_t width;
+    uint32_t height;
+} bsp_camera_frame_t;</code></pre>
+      <p><code>buffer</code> 指向 RGB565 帧数据，<code>len</code> 是有效数据长度，<code>width</code> 和 <code>height</code> 描述当前帧尺寸。</p>
+
+      <h2 id="flow">4. 工作流程</h2>
+      <ol>
+        <li>调用 <code>bsp_camera_ov5647_init()</code>。</li>
+        <li>分配两个 800x640 RGB565 PSRAM 帧缓冲区。</li>
+        <li>创建 SCCB I2C bus，并通过 <code>esp_cam_sensor</code> 自动检测 OV5647。</li>
+        <li>查找并设置 <code>MIPI_2lane_24Minput_RAW8_800x640_50fps</code> 格式。</li>
+        <li>打开 OV5647 stream。</li>
+        <li>创建 MIPI-CSI controller，注册取空闲缓冲和传输完成回调。</li>
+        <li>创建并启用 ISP，完成 RAW8 到 RGB565 的转换。</li>
+        <li>应用循环调用 <code>bsp_camera_ov5647_get_frame()</code> 获取 RGB565 帧。</li>
+        <li>显示或处理完成后调用 <code>bsp_camera_ov5647_return_frame()</code> 归还缓冲区。</li>
+      </ol>
+
+      <h2 id="api">5. 函数说明</h2>
+      <h3><code>bsp_camera_ov5647_init()</code></h3>
+      <p>初始化 OV5647、SCCB、MIPI-CSI、ISP 和内部帧缓冲队列。函数重复调用时，如果摄像头已经初始化，会直接返回 <code>ESP_OK</code>。</p>
+      <pre><code>ESP_ERROR_CHECK(bsp_camera_ov5647_init());</code></pre>
+
+      <h3><code>bsp_camera_ov5647_deinit()</code></h3>
+      <p>停止 CSI，关闭 ISP，关闭传感器 stream，并释放 SCCB、I2C、帧缓冲和队列资源。</p>
+      <pre><code>ESP_ERROR_CHECK(bsp_camera_ov5647_deinit());</code></pre>
+
+      <h3><code>bsp_camera_ov5647_get_frame(bsp_camera_frame_t *frame, TickType_t timeout_ticks)</code></h3>
+      <p>等待 ready queue 中的一帧 RGB565 图像。获取成功后，调用者拥有该帧缓冲的临时使用权。</p>
+      <pre><code>bsp_camera_frame_t frame = {0};
+esp_err_t ret = bsp_camera_ov5647_get_frame(&frame, pdMS_TO_TICKS(1000));
+if (ret == ESP_OK) {
+    // frame.buffer 是 RGB565 图像
+}</code></pre>
+
+      <h3><code>bsp_camera_ov5647_return_frame(void *buffer)</code></h3>
+      <p>归还由 <code>bsp_camera_ov5647_get_frame()</code> 返回的帧缓冲区。没有归还缓冲区会导致可复用帧缓冲减少，最终可能采集停滞。</p>
+      <pre><code>ESP_ERROR_CHECK(bsp_camera_ov5647_return_frame(frame.buffer));</code></pre>
+
+      <h2 id="examples">6. 使用示例</h2>
+      <h3>6.1 初始化并获取一帧</h3>
+      <pre><code>#include "bsp_camera_ov5647.h"
+
+void app_main(void)
+{
+    ESP_ERROR_CHECK(bsp_camera_ov5647_init());
+
+    bsp_camera_frame_t frame = {0};
+    ESP_ERROR_CHECK(bsp_camera_ov5647_get_frame(&frame, portMAX_DELAY));
+
+    // 使用 frame.buffer / frame.len / frame.width / frame.height
+
+    ESP_ERROR_CHECK(bsp_camera_ov5647_return_frame(frame.buffer));
+}</code></pre>
+
+      <h3>6.2 直接显示到 RGB565 LCD</h3>
+      <pre><code>#include "bsp_camera_ov5647.h"
+#include "bsp_lcd_jd9365_10_1.h"
+
+void app_main(void)
+{
+    ESP_ERROR_CHECK(bsp_lcd_init());
+    ESP_ERROR_CHECK(bsp_camera_ov5647_init());
+
+    while (1) {
+        bsp_camera_frame_t frame = {0};
+        if (bsp_camera_ov5647_get_frame(&frame, portMAX_DELAY) == ESP_OK) {
+            ESP_ERROR_CHECK(bsp_lcd_draw_bitmap(0, 320,
+                                                frame.width,
+                                                320 + frame.height,
+                                                frame.buffer));
+            ESP_ERROR_CHECK(bsp_lcd_wait_flush_done(portMAX_DELAY));
+            ESP_ERROR_CHECK(bsp_camera_ov5647_return_frame(frame.buffer));
+        }
+    }
+}</code></pre>
+
+      <h3>6.3 与 FPS 叠加层配合</h3>
+      <pre><code>bsp_fps_overlay_count_frame();
+ESP_ERROR_CHECK(bsp_fps_overlay_draw_to_rgb565((uint16_t *)frame.buffer,
+                                               frame.width,
+                                               frame.height,
+                                               frame.width,
+                                               0,
+                                               320));</code></pre>
+
+      <h2 id="notes">7. 注意事项</h2>
+      <ul>
+        <li>需要启用 <code>CONFIG_CAMERA_OV5647</code> 和 <code>CONFIG_CAMERA_OV5647_MIPI_RAW8_800X640_50FPS</code>。</li>
+        <li>帧缓冲区位于 PSRAM，并按 64 字节对齐，适合 DMA/CSI 使用。</li>
+        <li>调用 <code>bsp_camera_ov5647_get_frame()</code> 后必须调用 <code>bsp_camera_ov5647_return_frame()</code>。</li>
+        <li>该模块默认输出 RGB565；如果显示链路也是 RGB565，可以避免 CPU 色彩转换。</li>
+        <li>SCCB 默认使用 GPIO7/GPIO8。若同一硬件还使用这些引脚作为触摸或其它 I2C 设备，需要统一 I2C 资源管理。</li>
+        <li>当前封装固定为 800x640。若要支持其它 OV5647 格式，需要同步修改 Kconfig、格式名称、分辨率宏和帧缓冲大小。</li>
+      </ul>
+    </main>
+  </div>
+</body>
+</html>

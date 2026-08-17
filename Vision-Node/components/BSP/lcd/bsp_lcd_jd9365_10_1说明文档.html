@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BSP LCD JD9365 10.1 + GT9271 触摸说明文档</title>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --paper: #ffffff;
+      --text: #1f2937;
+      --muted: #5b6778;
+      --line: #d8dee8;
+      --primary: #0f766e;
+      --soft: #e7f5f3;
+      --warn: #8a5a00;
+      --warn-soft: #fff4d6;
+      --code-bg: #111827;
+      --code-text: #e5e7eb;
+      --head: #eef2f7;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", Arial, sans-serif;
+      line-height: 1.72;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 290px minmax(0, 1fr);
+      max-width: 1440px;
+      margin: 0 auto;
+      min-height: 100vh;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      overflow: auto;
+      padding: 28px 20px;
+      border-right: 1px solid var(--line);
+      background: #f0f4f8;
+    }
+
+    nav h2 {
+      margin: 0 0 14px;
+      font-size: 18px;
+      color: var(--primary);
+    }
+
+    nav a {
+      display: block;
+      padding: 5px 0;
+      color: #344054;
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    nav a:hover { color: var(--primary); }
+
+    main {
+      max-width: 1040px;
+      width: 100%;
+      padding: 36px 44px 72px;
+      background: var(--paper);
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: 34px;
+      line-height: 1.25;
+      color: #111827;
+    }
+
+    h2 {
+      margin-top: 42px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+      font-size: 25px;
+      color: #172033;
+    }
+
+    h3 {
+      margin-top: 28px;
+      font-size: 20px;
+      color: #223043;
+    }
+
+    p { margin: 12px 0; }
+
+    .lead {
+      font-size: 16px;
+      color: var(--muted);
+    }
+
+    .note,
+    .warning {
+      margin: 18px 0;
+      padding: 14px 16px;
+      border-left: 4px solid var(--primary);
+      background: var(--soft);
+      border-radius: 6px;
+    }
+
+    .warning {
+      border-left-color: var(--warn);
+      background: var(--warn-soft);
+      color: #4b3500;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 22px;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 9px 11px;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--head);
+      text-align: left;
+      color: #263445;
+    }
+
+    code {
+      font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+      font-size: 0.95em;
+      background: #edf2f7;
+      color: #18212f;
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+
+    pre {
+      overflow: auto;
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 16px;
+      border-radius: 8px;
+      line-height: 1.5;
+      font-size: 13px;
+      margin: 16px 0 22px;
+    }
+
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      border-radius: 0;
+      white-space: pre;
+    }
+
+    ul, ol { padding-left: 24px; }
+    li { margin: 5px 0; }
+
+    @media (max-width: 960px) {
+      .layout { display: block; }
+      nav {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+      main { padding: 26px 20px 56px; }
+      h1 { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <nav>
+      <h2>目录</h2>
+      <a href="#overview">1. 模块概览</a>
+      <a href="#files">2. 模块组成</a>
+      <a href="#params">3. 硬件参数</a>
+      <a href="#flow">4. 初始化流程</a>
+      <a href="#api-lcd">5. LCD 函数说明</a>
+      <a href="#api-touch">6. 触摸函数说明</a>
+      <a href="#examples">7. 使用示例</a>
+      <a href="#notes">8. 注意事项</a>
+    </nav>
+
+    <main>
+      <h1>BSP LCD JD9365 10.1 + GT9271 触摸说明文档</h1>
+      <p class="lead">本文档说明 JD9365 10.1 寸 MIPI-DSI LCD 与 GT9271 十点触摸的 BSP 封装接口。该模块基于 <code>waveshare/esp_lcd_jd9365_10_1</code> 组件驱动屏幕，并通过 I2C 读取 GT9271 触摸数据。</p>
+
+      <div class="note">本 BSP 的目标是给应用层提供稳定、简洁的屏幕和触摸接口。应用层无需直接操作 MIPI-DSI、DBI IO、DPI panel 或 GT9271 原始寄存器。</div>
+
+      <h2 id="overview">1. 模块概览</h2>
+      <table>
+        <tr><th>条目</th><th>说明</th></tr>
+        <tr><td>LCD 控制器</td><td>JD9365</td></tr>
+        <tr><td>LCD 接口</td><td>MIPI-DSI + DPI 视频流 + DBI 命令通道</td></tr>
+        <tr><td>触摸芯片</td><td>Goodix GT9271</td></tr>
+        <tr><td>触摸接口</td><td>I2C</td></tr>
+        <tr><td>最大触摸点数</td><td>10 点</td></tr>
+        <tr><td>默认分辨率</td><td>800 x 1280</td></tr>
+        <tr><td>默认像素格式</td><td>RGB565，2 字节/像素</td></tr>
+      </table>
+
+      <h2 id="files">2. 模块组成</h2>
+      <table>
+        <tr><th>组成</th><th>职责</th></tr>
+        <tr><td><code>bsp_lcd_jd9365_10_1.h</code></td><td>对外声明屏幕参数、触摸参数、结构体和 BSP API。</td></tr>
+        <tr><td><code>bsp_lcd_jd9365_10_1.c</code></td><td>实现 LCD 初始化、绘图提交、刷新等待、背光控制、GT9271 初始化和触摸读取。</td></tr>
+        <tr><td><code>bsp_lcd_jd9365_10_1说明文档.html</code></td><td>本说明文档。</td></tr>
+      </table>
+
+      <h2 id="params">3. 硬件参数</h2>
+      <h3>3.1 LCD 参数</h3>
+      <table>
+        <tr><th>宏</th><th>值</th><th>说明</th></tr>
+        <tr><td><code>BSP_LCD_H_RES</code></td><td>800</td><td>水平分辨率</td></tr>
+        <tr><td><code>BSP_LCD_V_RES</code></td><td>1280</td><td>垂直分辨率</td></tr>
+        <tr><td><code>BSP_LCD_BITS_PER_PIXEL</code></td><td>16</td><td>RGB565</td></tr>
+        <tr><td><code>BSP_LCD_RST_GPIO</code></td><td>27</td><td>LCD reset GPIO</td></tr>
+        <tr><td><code>BSP_LCD_BK_LIGHT_GPIO</code></td><td>26</td><td>背光控制 GPIO</td></tr>
+        <tr><td><code>BSP_LCD_MIPI_DSI_LANE_NUM</code></td><td>2</td><td>MIPI-DSI 数据 lane 数</td></tr>
+        <tr><td><code>BSP_LCD_MIPI_PHY_LDO_CHAN</code></td><td>3</td><td>MIPI PHY LDO 通道</td></tr>
+        <tr><td><code>BSP_LCD_MIPI_PHY_LDO_VOLTAGE_MV</code></td><td>2500</td><td>MIPI PHY LDO 电压</td></tr>
+      </table>
+
+      <h3>3.2 触摸参数</h3>
+      <table>
+        <tr><th>宏</th><th>值</th><th>说明</th></tr>
+        <tr><td><code>BSP_TOUCH_MAX_POINTS</code></td><td>10</td><td>最大触摸点数量</td></tr>
+        <tr><td><code>BSP_TOUCH_I2C_PORT</code></td><td>1</td><td>I2C1</td></tr>
+        <tr><td><code>BSP_TOUCH_I2C_SDA_GPIO</code></td><td>7</td><td>I2C SDA</td></tr>
+        <tr><td><code>BSP_TOUCH_I2C_SCL_GPIO</code></td><td>8</td><td>I2C SCL</td></tr>
+        <tr><td><code>BSP_TOUCH_I2C_CLK_HZ</code></td><td>400000</td><td>I2C 时钟</td></tr>
+        <tr><td><code>BSP_TOUCH_GT9271_ADDR_PRIMARY</code></td><td>0x14</td><td>优先尝试地址</td></tr>
+        <tr><td><code>BSP_TOUCH_GT9271_ADDR_SECONDARY</code></td><td>0x5D</td><td>备用地址</td></tr>
+      </table>
+
+      <h2 id="flow">4. 初始化流程</h2>
+      <ol>
+        <li>调用 <code>bsp_lcd_init()</code>。</li>
+        <li>配置并打开背光 GPIO。</li>
+        <li>打开 MIPI DSI PHY LDO。</li>
+        <li>创建 MIPI DSI bus。</li>
+        <li>创建 MIPI DBI command IO。</li>
+        <li>创建 JD9365 panel。</li>
+        <li>执行 panel reset、init、display on。</li>
+        <li>注册 DPI 传输完成回调。</li>
+        <li>调用 <code>bsp_touch_init()</code> 初始化 GT9271。</li>
+        <li>应用循环中调用 <code>bsp_touch_read_points()</code> 读取触摸点。</li>
+      </ol>
+
+      <h2 id="api-lcd">5. LCD 函数说明</h2>
+      <h3><code>bsp_lcd_init()</code></h3>
+      <p>初始化 LCD 显示链路。该函数是幂等的，重复调用会直接返回 <code>ESP_OK</code>。</p>
+      <pre><code>ESP_ERROR_CHECK(bsp_lcd_init());</code></pre>
+
+      <h3><code>bsp_lcd_deinit()</code></h3>
+      <p>释放 LCD 和触摸相关资源。适合测试程序或低功耗场景使用。</p>
+      <pre><code>ESP_ERROR_CHECK(bsp_lcd_deinit());</code></pre>
+
+      <h3><code>bsp_lcd_get_panel()</code></h3>
+      <p>返回底层 <code>esp_lcd_panel_handle_t</code>，用于直接调用 esp_lcd 或 MIPI DPI 扩展 API。</p>
+      <pre><code>esp_lcd_panel_handle_t panel = bsp_lcd_get_panel();</code></pre>
+
+      <h3><code>bsp_lcd_set_backlight(bool on)</code></h3>
+      <p>控制背光 GPIO。关闭背光不会停止 LCD 扫描，只是屏幕不可见。</p>
+      <pre><code>ESP_ERROR_CHECK(bsp_lcd_set_backlight(true));
+ESP_ERROR_CHECK(bsp_lcd_set_backlight(false));</code></pre>
+
+      <h3><code>bsp_lcd_display_on(bool on)</code></h3>
+      <p>发送 LCD Display ON/OFF 命令。它和背光控制是两件不同的事。</p>
+      <pre><code>ESP_ERROR_CHECK(bsp_lcd_display_on(true));
+ESP_ERROR_CHECK(bsp_lcd_display_on(false));</code></pre>
+
+      <h3><code>bsp_lcd_invert_color(bool invert)</code></h3>
+      <p>开启或关闭颜色反相。</p>
+      <pre><code>ESP_ERROR_CHECK(bsp_lcd_invert_color(true));
+ESP_ERROR_CHECK(bsp_lcd_invert_color(false));</code></pre>
+
+      <h3><code>bsp_lcd_mirror(bool mirror_x, bool mirror_y)</code></h3>
+      <p>设置 X/Y 镜像。JD9365 当前封装不支持 <code>swap_xy</code>，因此不能仅靠该函数完成 90 度旋转。</p>
+      <pre><code>ESP_ERROR_CHECK(bsp_lcd_mirror(true, false));</code></pre>
+
+      <h3><code>bsp_lcd_draw_bitmap(...)</code></h3>
+      <p>向指定区域提交像素数据。坐标区间是左上角包含、右下角不包含。</p>
+      <pre><code>ESP_ERROR_CHECK(bsp_lcd_draw_bitmap(0, 0, 100, 80, buffer));</code></pre>
+      <div class="warning">如果复用同一块 DMA 缓冲区，提交后应调用 <code>bsp_lcd_wait_flush_done()</code>，等待传输完成后再改写缓冲区。</div>
+
+      <h3><code>bsp_lcd_wait_flush_done(TickType_t timeout_ticks)</code></h3>
+      <p>等待 DPI 颜色数据传输完成。</p>
+      <pre><code>ESP_ERROR_CHECK(bsp_lcd_wait_flush_done(portMAX_DELAY));</code></pre>
+
+      <h2 id="api-touch">6. 触摸函数说明</h2>
+      <h3><code>bsp_touch_init()</code></h3>
+      <p>初始化 GT9271 触摸芯片。函数会先尝试地址 <code>0x14</code>，失败后尝试 <code>0x5D</code>，并读取 Product ID 确认设备存在。</p>
+      <pre><code>esp_err_t ret = bsp_touch_init();
+if (ret == ESP_OK) {
+    ESP_LOGI(TAG, "Touch ready");
+}</code></pre>
+
+      <h3><code>bsp_touch_deinit()</code></h3>
+      <p>释放触摸设备句柄。该函数不会主动删除 I2C1 bus，避免影响 LCD 组件内部使用的 I2C 资源。</p>
+      <pre><code>ESP_ERROR_CHECK(bsp_touch_deinit());</code></pre>
+
+      <h3><code>bsp_touch_read_points(bsp_touch_data_t *data)</code></h3>
+      <p>读取当前触摸点。无新数据时返回 <code>ESP_OK</code> 且 <code>data.count == 0</code>。有新数据时返回最多 10 个触摸点，并清除 GT9271 状态寄存器。</p>
+      <pre><code>bsp_touch_data_t touch = {0};
+ESP_ERROR_CHECK(bsp_touch_read_points(&touch));
+
+ESP_LOGI(TAG, "touch count: %u", touch.count);
+for (uint8_t i = 0; i &lt; touch.count; i++) {
+    ESP_LOGI(TAG, "id=%u x=%u y=%u size=%u",
+             touch.points[i].id,
+             touch.points[i].x,
+             touch.points[i].y,
+             touch.points[i].size);
+}</code></pre>
+
+      <h2 id="examples">7. 使用示例</h2>
+      <h3>7.1 初始化 LCD 和触摸</h3>
+      <pre><code>#include "bsp_lcd_jd9365_10_1.h"
+
+void app_main(void)
+{
+    ESP_ERROR_CHECK(bsp_lcd_init());
+
+    esp_err_t ret = bsp_touch_init();
+    if (ret != ESP_OK) {
+        ESP_LOGW("app", "touch init failed: %s", esp_err_to_name(ret));
+    }
+}</code></pre>
+
+      <h3>7.2 绘制一个纯色矩形</h3>
+      <pre><code>#define RECT_W 100
+#define RECT_H 80
+
+uint16_t *buf = heap_caps_malloc(RECT_W * RECT_H * sizeof(uint16_t),
+                                 MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
+
+for (int i = 0; i &lt; RECT_W * RECT_H; i++) {
+    buf[i] = 0xF800; // RGB565 red
+}
+
+ESP_ERROR_CHECK(bsp_lcd_draw_bitmap(0, 0, RECT_W, RECT_H, buf));
+ESP_ERROR_CHECK(bsp_lcd_wait_flush_done(portMAX_DELAY));</code></pre>
+
+      <h3>7.3 周期性检测触摸</h3>
+      <pre><code>while (1) {
+    bsp_touch_data_t touch = {0};
+    if (bsp_touch_read_points(&touch) == ESP_OK) {
+        ESP_LOGI("touch", "count=%u", touch.count);
+        for (uint8_t i = 0; i &lt; touch.count; i++) {
+            ESP_LOGI("touch", "[%u] id=%u x=%u y=%u size=%u",
+                     i,
+                     touch.points[i].id,
+                     touch.points[i].x,
+                     touch.points[i].y,
+                     touch.points[i].size);
+        }
+    }
+    vTaskDelay(pdMS_TO_TICKS(20));
+}</code></pre>
+
+      <h2 id="notes">8. 注意事项</h2>
+      <ul>
+        <li>LCD 默认像素格式是 RGB565，绘图缓冲区每个像素必须提供 2 字节。</li>
+        <li>大面积绘图建议使用 <code>MALLOC_CAP_DMA</code> 分配缓冲区。</li>
+        <li>复用绘图缓冲区前，应等待 <code>bsp_lcd_wait_flush_done()</code> 返回成功。</li>
+        <li>触摸检测频率由应用层控制。如果放在较慢的 UI 刷新循环中，触摸响应也会变慢。</li>
+        <li>GT9271 的 I2C 地址可能是 <code>0x14</code> 或 <code>0x5D</code>，BSP 会自动尝试两个地址。</li>
+        <li>I2C1/GPIO7/GPIO8 同时被触摸和屏幕板载器件使用，修改这些引脚时需要同步检查 LCD 驱动内部逻辑。</li>
+      </ul>
+    </main>
+  </div>
+</body>
+</html>
