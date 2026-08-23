@@ -1,3 +1,7 @@
-unpackage/
+# Ignore generated packaging output, except the icon source assets referenced by manifest.json.
+unpackage/*
+!unpackage/res/
+!unpackage/res/icons/
+!unpackage/res/icons/*.png
 .DS_Store
 .hbuilderx/

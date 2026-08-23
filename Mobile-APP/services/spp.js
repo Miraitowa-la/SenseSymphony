@@ -1,7 +1,7 @@
 import { FrameBuffer } from '../utils/protocol.js'
 
 const SPP_UUID = '00001101-0000-1000-8000-00805F9B34FB'
-const TARGET_NAME = 'JDY-31-SPP'
+const TARGET_NAME = 'QianSai-MusicLab'
 
 class SppService {
 	constructor() {

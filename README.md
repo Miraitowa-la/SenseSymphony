@@ -9,7 +9,7 @@ SenseSymphony 将人脸、表情与手势识别接入触摸屏音乐主机，并
 - **AI 视觉交互**：摄像头节点支持人脸、表情、手部与手势识别，并通过 UART 将识别结果发送至主机。
 - **三种音乐模式**：自由演奏与录制、下落式节奏演奏、基于人脸的单人/双人/多人互动演奏。
 - **触摸屏音乐主机**：基于 LVGL 的图形界面，支持音频播放、成绩记录、用户曲谱存储和触摸操作。
-- **移动端协同**：Android App 通过经典蓝牙 SPP 连接设备，支持历史记录、曲目选择、曲谱编辑与上传。
+- **移动端协同**：Android App（当前版本 **1.0.1**）通过经典蓝牙 SPP 连接设备，提供首页、录制历史、挑战成绩、曲目管理与个人中心入口。
 - **完整硬件资料**：提供可编辑的 SolidWorks 外壳模型及 STL 打印模型。
 
 ## 系统架构
@@ -61,7 +61,7 @@ SenseSymphony/
 | --- | --- | --- |
 | [`Vision-Node`](Vision-Node) | 采集摄像头画面并执行人脸/手势检测 | `main/main_slave.c` |
 | [`Music-Station`](Music-Station) | 运行 LVGL 交互界面、音乐模式、存储与通信服务 | `main/main.c`、`main/ui/home_screen.c` |
-| [`Mobile-APP`](Mobile-APP) | 通过蓝牙 SPP 管理曲谱、成绩与录制记录 | `App.vue`、`services/spp.js` |
+| [`Mobile-APP`](Mobile-APP) | Vue 3 + uni-app Android App；通过蓝牙 SPP 管理录制、成绩、曲目和自定义曲谱 | `App.vue`、`services/spp.js` |
 | [`3D-Model`](3D-Model) | 外壳的 SolidWorks、STL 等模型文件 | `*.SLDPRT`、`*.STL` |
 
 ## 开发环境
@@ -103,14 +103,22 @@ idf.py -p <serial-port> flash monitor
 
 1. 使用 HBuilderX 打开 `Mobile-APP` 目录。
 2. 选择 Android App 平台运行或云打包。
-3. 在 Android 设备中开启蓝牙，并与主机端使用的串口蓝牙模块完成系统配对。
-4. 在 App 中扫描已配对设备并建立 SPP 连接。
+3. 在 Android 设备中开启蓝牙，并与主机端使用的串口蓝牙模块完成系统配对；当前 App 会优先显示 **QianSai-MusicLab**。
+4. 在首页扫描已配对设备并建立 SPP 连接；底部导航可进入录制历史、挑战成绩和曲目管理。
+5. 若重新打包，请保留 `Mobile-APP/unpackage/res/icons/`：该目录包含 `manifest.json` 引用的 Android/iOS 应用图标。
+
+### 移动端 1.0.1 更新
+
+- 将“歌曲与成绩”中转页改为五栏底部导航：首页、录制历史、成绩、我的曲目和我的。
+- 更新首页、录制历史、录制详情、成绩和曲目管理的移动端界面；录制轨迹画布会根据手机屏幕宽度自适应。
+- 新增个人中心入口，并补充 Android/iOS 多尺寸应用图标。
+- 默认推荐蓝牙设备名称调整为 `QianSai-MusicLab`；SPP UUID 和主机通信协议保持不变。
 
 ## 贡献指南
 
 欢迎提交 Issue 和 Pull Request。提交前请注意：
 
-- 不要提交 `build/`、`unpackage/`、安装包、签名证书或本地 IDE 缓存。
+- 不要提交 `build/`、`unpackage/` 中的缓存、编译产物、安装包、签名证书或本地 IDE 缓存；仅 `Mobile-APP/unpackage/res/icons/` 是打包所需的图标源资源，应保留并提交。
 - ESP-IDF 项目应提交源代码、`CMakeLists.txt`、分区表和依赖锁定文件；请勿提交本机生成的 `sdkconfig`。
 - 变更蓝牙或 UART 协议时，请同步检查主机端与移动端的协议兼容性。
 - 新增资源时，请确认其拥有可公开发布的版权与授权。
