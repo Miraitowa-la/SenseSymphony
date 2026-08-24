@@ -518,7 +518,7 @@ static void mode2_song_tick(lv_timer_t *timer)
         int lane = s_mode2_song->notes[i];
         uint32_t distance = age > MODE2_NOTE_FALL_MS ? age - MODE2_NOTE_FALL_MS : MODE2_NOTE_FALL_MS - age;
         if (!s_mode2_note_judged[i] && distance <= MODE2_GOOD_MS &&
-            s_mode2_hand_lane >= lane - 1 && s_mode2_hand_lane <= lane + 1) {
+            s_mode2_hand_lane == lane) {
             int result = distance <= MODE2_PERFECT_MS ? 0 :
                          distance <= MODE2_GREAT_MS ? 1 : 2;
             mode2_show_judge(result);

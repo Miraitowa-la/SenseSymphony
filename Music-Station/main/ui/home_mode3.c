@@ -9,7 +9,7 @@ static void mode3_refresh_single(const ai_uart_snapshot_t *snapshot);
 
 static const char *mode3_mode_name(void)
 {
-    return s_mode3_player_limit == 1 ? "SINGLE" : s_mode3_player_limit == 2 ? "DUO" : "GROUP";
+    return s_mode3_player_limit == 1 ? "SINGLE" : "DUO";
 }
 
 static void home_mode3_create(lv_obj_t *screen)
@@ -36,10 +36,18 @@ static void home_mode3_grid_create(lv_obj_t *screen)
     static const char *const bands[3] = {"LOW", "MID", "HIGH"};
     static const char *const notes[7] = {"do", "re", "mi", "fa", "sol", "la", "si"};
     static const uint32_t colors[7] = {0x00D9FF, 0x4D8CFF, 0x8C5CFF, 0xFF5CC8, 0xFF7A59, 0xFFD166, 0x73E6A5};
-    static const uint32_t player_colors[MODE3_MAX_PLAYERS] = {0xFFFFFF, 0xFFD166, 0xFF77D4};
+    static const uint32_t player_colors[MODE3_MAX_PLAYERS] = {0xFFFFFF, 0xFFD166};
     const int grid_x = 60, grid_y = 260, grid_w = 700, grid_h = 760;
     const int cell_w = grid_w / 7, cell_h = grid_h / 3;
     memset(s_mode3_players, 0, sizeof(s_mode3_players));
+    for (int player = 0; player < MODE3_MAX_PLAYERS; ++player) {
+        s_mode3_players[player].band = -1;
+        s_mode3_players[player].note = -1;
+        s_mode3_players[player].candidate_band = -1;
+        s_mode3_players[player].candidate_note = -1;
+        s_mode3_players[player].locked_band = -1;
+        s_mode3_players[player].locked_note = -1;
+    }
     memset(s_mode3_cell_last_note_ms, 0, sizeof(s_mode3_cell_last_note_ms));
     s_mode3_trigger_count = 0;
     for (int band = 0; band < 3; band++) for (int note = 0; note < 7; note++) {
@@ -84,7 +92,7 @@ static void mode3_mute_clicked(lv_event_t *event)
 static void mode3_mode_clicked(lv_event_t *event)
 {
     (void)event;
-    s_mode3_player_limit = s_mode3_player_limit % MODE3_MAX_PLAYERS + 1;
+    s_mode3_player_limit = s_mode3_player_limit == 1 ? 2 : 1;
     mode3_clear_players();
     lv_label_set_text_fmt(s_mode3_mode_label, "MODE: %s", mode3_mode_name());
 }
@@ -136,38 +144,126 @@ static void mode3_refresh_highlights(void)
 static void mode3_clear_players(void)
 {
     memset(s_mode3_players, 0, sizeof(s_mode3_players));
+    for (int player = 0; player < MODE3_MAX_PLAYERS; ++player) {
+        s_mode3_players[player].band = -1;
+        s_mode3_players[player].note = -1;
+        s_mode3_players[player].candidate_band = -1;
+        s_mode3_players[player].candidate_note = -1;
+        s_mode3_players[player].locked_band = -1;
+        s_mode3_players[player].locked_note = -1;
+    }
     for (int player = 0; player < MODE3_MAX_PLAYERS; player++) if (s_mode3_cursors[player]) lv_obj_add_flag(s_mode3_cursors[player], LV_OBJ_FLAG_HIDDEN);
     if (s_mode3_cells[0][0]) mode3_refresh_highlights();
 }
 
-static void mode3_refresh_single(const ai_uart_snapshot_t *snapshot)
+static bool mode3_update_trigger(mode3_player_t *state, bool valid,
+                                 uint32_t now)
 {
-    mode3_player_t *state = &s_mode3_players[0];
-    if (snapshot->mode != AI_UART_MODE_FACE || snapshot->object_count == 0) {
-        if (state->active && lv_tick_elaps(state->last_seen_ms) > MODE3_FACE_LOST_GRACE_MS) {
-            state->active = false;
-            lv_obj_add_flag(s_mode3_cursors[0], LV_OBJ_FLAG_HIDDEN);
-            mode3_refresh_highlights();
+    if (!valid) {
+        if (state->release_frames < MODE3_RELEASE_CONFIRM_FRAMES) {
+            ++state->release_frames;
         }
-        return;
+        if (state->release_frames == MODE3_RELEASE_CONFIRM_FRAMES) {
+            state->locked_band = -1;
+            state->locked_note = -1;
+            state->candidate_band = -1;
+            state->candidate_note = -1;
+            state->candidate_frames = 0;
+            state->has_triggered = false;
+            state->pending_trigger = false;
+        }
+        return false;
     }
 
-    const ai_uart_object_t *face = &snapshot->objects[0];
-    uint32_t now = lv_tick_get();
+    state->release_frames = 0;
+    if (state->band != state->locked_band || state->note != state->locked_note) {
+        if (state->band != state->candidate_band || state->note != state->candidate_note) {
+            state->candidate_band = state->band;
+            state->candidate_note = state->note;
+            state->candidate_frames = 1;
+        } else if (state->candidate_frames < UINT8_MAX) {
+            ++state->candidate_frames;
+        }
+        if (state->candidate_frames < MODE3_DEBOUNCE_FRAMES) return false;
+        state->locked_band = state->band;
+        state->locked_note = state->note;
+        state->candidate_frames = 0;
+        if (!state->has_triggered ||
+            now - state->last_note_ms >= MODE3_NOTE_CHANGE_MIN_GAP_MS) {
+            state->has_triggered = true;
+            state->last_note_ms = now;
+            return true;
+        }
+        state->pending_trigger = true;
+        return false;
+    }
+    if (state->pending_trigger &&
+        now - state->last_note_ms >= MODE3_NOTE_CHANGE_MIN_GAP_MS) {
+        state->pending_trigger = false;
+        state->last_note_ms = now;
+        return true;
+    }
+    if (state->has_triggered &&
+        now - state->last_note_ms >= MODE3_SAME_CELL_RETRIGGER_MS) {
+        state->last_note_ms = now;
+        return true;
+    }
+    return false;
+}
+
+static void mode3_hide_player(int player)
+{
+    mode3_player_t *state = &s_mode3_players[player];
+    if (state->active && lv_tick_elaps(state->last_seen_ms) > MODE3_FACE_LOST_GRACE_MS) {
+        state->active = false;
+        (void)mode3_update_trigger(state, false, lv_tick_get());
+        lv_obj_add_flag(s_mode3_cursors[player], LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+static void mode3_observe_player(int player, const ai_uart_object_t *face,
+                                 uint32_t now)
+{
+    mode3_player_t *state = &s_mode3_players[player];
     state->x10 = face->x10;
     state->y10 = face->y10;
     state->band = mode3_band_from_y(state, face->y10);
     state->note = mode3_note_from_x(state, face->x10);
     state->last_seen_ms = now;
     state->active = true;
-    lv_obj_set_pos(s_mode3_cursors[0], 50 + face->x10 * 700 / 1000, 250 + face->y10 * 760 / 1000);
-    lv_obj_clear_flag(s_mode3_cursors[0], LV_OBJ_FLAG_HIDDEN);
-    lv_obj_move_foreground(s_mode3_cursors[0]);
-    if (lv_tick_elaps(state->last_note_ms) >= MODE3_NOTE_COOLDOWN_MS) {
-        note_audio_play(state->band, state->note);
-        state->last_note_ms = now;
-        s_mode3_trigger_count++;
+    lv_obj_set_pos(s_mode3_cursors[player], 50 + face->x10 * 700 / 1000,
+                   250 + face->y10 * 760 / 1000);
+    lv_obj_clear_flag(s_mode3_cursors[player], LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(s_mode3_cursors[player]);
+}
+
+static void mode3_emit_if_ready(int player, uint32_t now)
+{
+    mode3_player_t *state = &s_mode3_players[player];
+    if (!mode3_update_trigger(state, state->active, now)) return;
+    if (s_mode3_player_limit == 2 &&
+        now - s_mode3_cell_last_note_ms[state->locked_band][state->locked_note] <
+            MODE3_DUO_SAME_NOTE_MERGE_WINDOW_MS) {
+        return;
     }
+    note_audio_play(state->locked_band, state->locked_note);
+    s_mode3_cell_last_note_ms[state->locked_band][state->locked_note] = now;
+    ++s_mode3_trigger_count;
+}
+
+static void mode3_refresh_single(const ai_uart_snapshot_t *snapshot)
+{
+    if (snapshot->mode != AI_UART_MODE_FACE || snapshot->object_count == 0) {
+        mode3_hide_player(0);
+        mode3_emit_if_ready(0, lv_tick_get());
+        mode3_refresh_highlights();
+        return;
+    }
+
+    const ai_uart_object_t *face = &snapshot->objects[0];
+    uint32_t now = lv_tick_get();
+    mode3_observe_player(0, face, now);
+    mode3_emit_if_ready(0, now);
     mode3_refresh_highlights();
     lv_label_set_text_fmt(s_uart_label, "SINGLE  FACE 1  CONF %u%%\nAUDIO %s  TRIGGERS %lu",
                           face->detect_confidence / 10, note_audio_enabled() ? "ON" : "OFF",
@@ -200,32 +296,15 @@ static void mode3_refresh_faces(const ai_uart_snapshot_t *snapshot)
         }
         mode3_player_t *state = &s_mode3_players[player];
         if (best < 0) {
-            if (state->active && lv_tick_elaps(state->last_seen_ms) > MODE3_FACE_LOST_GRACE_MS) {
-                state->active = false;
-                lv_obj_add_flag(s_mode3_cursors[player], LV_OBJ_FLAG_HIDDEN);
-            }
+            mode3_hide_player(player);
+            mode3_emit_if_ready(player, now);
             continue;
         }
         used[best] = true;
         const ai_uart_object_t *face = &snapshot->objects[best];
-        state->x10 = face->x10;
-        state->y10 = face->y10;
-        state->band = mode3_band_from_y(state, face->y10);
-        state->note = mode3_note_from_x(state, face->x10);
-        state->last_seen_ms = now;
-        state->active = true;
+        mode3_observe_player(player, face, now);
         locked++;
-        lv_obj_set_pos(s_mode3_cursors[player], 50 + face->x10 * 700 / 1000, 250 + face->y10 * 760 / 1000);
-        lv_obj_clear_flag(s_mode3_cursors[player], LV_OBJ_FLAG_HIDDEN);
-        lv_obj_move_foreground(s_mode3_cursors[player]);
-        if (lv_tick_elaps(state->last_note_ms) >= MODE3_NOTE_COOLDOWN_MS) {
-            state->last_note_ms = now;
-            if (lv_tick_elaps(s_mode3_cell_last_note_ms[state->band][state->note]) >= 150) {
-                note_audio_play(state->band, state->note);
-                s_mode3_cell_last_note_ms[state->band][state->note] = now;
-                s_mode3_trigger_count++;
-            }
-        }
+        mode3_emit_if_ready(player, now);
     }
     mode3_refresh_highlights();
     lv_label_set_text_fmt(s_uart_label, "%s  FACES %u  LOCK %u/%u\nCONF %u%%  AUDIO %s  TRIGGERS %lu",

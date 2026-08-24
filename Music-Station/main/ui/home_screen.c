@@ -52,7 +52,11 @@ LV_IMAGE_DECLARE(countdown_1);
 LV_IMAGE_DECLARE(countdown_go);
 
 #define MODE1_UART_POLL_MS 40U
-#define MODE1_NOTE_COOLDOWN_MS 300U
+#define MODE1_CONF_LOW_THRESHOLD 500U
+#define MODE1_CONF_HIGH_THRESHOLD 800U
+#define MODE1_CONFIRM_FRAMES 2U
+#define MODE1_NOTE_CHANGE_INTERVAL_MS 120U
+#define MODE1_GESTURE_LOST_GRACE_MS 350U
 #define MODE1_RECORD_MAX 32U
 #define MODE1_TIMELINE_STEPS 12U
 #define MODE2_UART_POLL_MS 40U
@@ -70,11 +74,15 @@ LV_IMAGE_DECLARE(countdown_go);
 #define MODE2_GREAT_MS 100U
 #define MODE2_GOOD_MS 150U
 #define MODE2_COUNTDOWN_MS 800U
-#define MODE3_UART_POLL_MS 100U
-#define MODE3_NOTE_COOLDOWN_MS 300U
+#define MODE3_UART_POLL_MS 40U
+#define MODE3_DEBOUNCE_FRAMES 3U
+#define MODE3_NOTE_CHANGE_MIN_GAP_MS 300U
+#define MODE3_SAME_CELL_RETRIGGER_MS 700U
+#define MODE3_RELEASE_CONFIRM_FRAMES 3U
+#define MODE3_DUO_SAME_NOTE_MERGE_WINDOW_MS 80U
 #define MODE3_FACE_LOST_GRACE_MS 500U
 #define MODE3_CELL_HYSTERESIS 45U
-#define MODE3_MAX_PLAYERS 3U
+#define MODE3_MAX_PLAYERS 2U
 
 static const uint32_t s_note_colors[7] = {
     0x00D9FF, 0x4D8CFF, 0x8C5CFF, 0xFF5CC8, 0xFF7A59, 0xFFD166, 0x73E6A5,
@@ -235,6 +243,13 @@ static bool s_mode2_note_judged[MODE2_SONG_MAX_NOTES];
 static uint8_t s_mode2_note_size_index[MODE2_SONG_MAX_NOTES];
 static int s_mode1_last_action = -1;
 static uint32_t s_mode1_last_note_ms;
+static int s_mode1_candidate_action = -1;
+static int s_mode1_candidate_band = -1;
+static uint8_t s_mode1_candidate_frames;
+static int s_mode1_stable_action = -1;
+static int s_mode1_stable_band = -1;
+static uint32_t s_mode1_lost_since_ms;
+static uint32_t s_mode1_last_sequence;
 static mode1_record_item_t s_mode1_record[MODE1_RECORD_MAX];
 static uint8_t s_mode1_record_count;
 static uint8_t s_mode1_play_index;
@@ -252,6 +267,14 @@ typedef struct {
     int note;
     uint32_t last_seen_ms;
     uint32_t last_note_ms;
+    int candidate_band;
+    int candidate_note;
+    int locked_band;
+    int locked_note;
+    uint8_t candidate_frames;
+    uint8_t release_frames;
+    bool has_triggered;
+    bool pending_trigger;
 } mode3_player_t;
 
 static bool s_mode3_active;
@@ -349,6 +372,63 @@ static void mode3_apply_background(lv_obj_t *screen)
 #include "home_mode2.c"
 #include "home_mode3.c"
 
+static void mode1_reset_trigger(void)
+{
+    s_mode1_last_action = -1;
+    s_mode1_candidate_action = -1;
+    s_mode1_candidate_band = -1;
+    s_mode1_candidate_frames = 0;
+    s_mode1_stable_action = -1;
+    s_mode1_stable_band = -1;
+    s_mode1_lost_since_ms = 0;
+    s_mode1_last_sequence = UINT32_MAX;
+    s_mode1_last_note_ms = 0;
+}
+
+static bool mode1_accept_observation(const ai_uart_object_t *hand,
+                                     uint32_t sequence, uint32_t now)
+{
+    if (hand == NULL || hand->action < 0 || hand->action >= 7 ||
+        hand->detect_confidence < MODE1_CONF_LOW_THRESHOLD) {
+        if (s_mode1_stable_action >= 0 && s_mode1_lost_since_ms == 0) {
+            s_mode1_lost_since_ms = now;
+        }
+        if (s_mode1_lost_since_ms != 0 &&
+            now - s_mode1_lost_since_ms >= MODE1_GESTURE_LOST_GRACE_MS) {
+            mode1_reset_trigger();
+        }
+        return false;
+    }
+
+    s_mode1_lost_since_ms = 0;
+    if (sequence == s_mode1_last_sequence) return false;
+    s_mode1_last_sequence = sequence;
+
+    int band = 2 - hand->y10 * 3 / 1001;
+    if (hand->action != s_mode1_candidate_action || band != s_mode1_candidate_band) {
+        s_mode1_candidate_action = hand->action;
+        s_mode1_candidate_band = band;
+        s_mode1_candidate_frames = 1;
+    } else if (s_mode1_candidate_frames < UINT8_MAX) {
+        ++s_mode1_candidate_frames;
+    }
+
+    bool changed = hand->action != s_mode1_stable_action ||
+                   band != s_mode1_stable_band;
+    bool confirmed = hand->detect_confidence >= MODE1_CONF_HIGH_THRESHOLD ||
+                     s_mode1_candidate_frames >= MODE1_CONFIRM_FRAMES;
+    if (!changed || !confirmed) return false;
+    if (s_mode1_last_note_ms != 0 &&
+        now - s_mode1_last_note_ms < MODE1_NOTE_CHANGE_INTERVAL_MS) {
+        return false;
+    }
+    s_mode1_stable_action = hand->action;
+    s_mode1_stable_band = band;
+    s_mode1_last_action = hand->action;
+    s_mode1_last_note_ms = now;
+    return true;
+}
+
 static void home_uart_refresh(lv_timer_t *timer)
 {
     (void)timer;
@@ -375,7 +455,7 @@ static void home_uart_refresh(lv_timer_t *timer)
     if (s_mode1_active) {
         const ai_uart_object_t *hand = snapshot.mode == AI_UART_MODE_GEST ? mode1_best_hand(&snapshot) : NULL;
         if (hand == NULL) {
-            s_mode1_last_action = -1;
+            (void)mode1_accept_observation(NULL, snapshot.sequence, lv_tick_get());
             if (s_mode1_note_image) lv_obj_add_flag(s_mode1_note_image, LV_OBJ_FLAG_HIDDEN);
             lv_obj_set_style_text_color(s_uart_label, lv_color_hex(0x66F2FF), 0);
             mode1_set_info("-", "-", -1, s_mode1_recording ? "RECORDING" : "SEARCHING");
@@ -385,9 +465,7 @@ static void home_uart_refresh(lv_timer_t *timer)
             int band = 2 - hand->y10 * 3 / 1001;
             uint32_t note_color = hand->action >= 0 && hand->action < 7 ?
                                   s_note_colors[hand->action] : 0x66F2FF;
-            if (hand->action >= 0 && hand->action < 7 &&
-                (hand->action != s_mode1_last_action ||
-                 lv_tick_elaps(s_mode1_last_note_ms) >= MODE1_NOTE_COOLDOWN_MS)) {
+            if (mode1_accept_observation(hand, snapshot.sequence, lv_tick_get())) {
                 note_audio_play(band, hand->action);
                 mode1_record_note(band, hand->action, hand->x10, hand->y10, lv_tick_get());
                 mode1_timeline_advance(hand->action);
@@ -469,8 +547,7 @@ static void home_show_mode(const char *mode_name)
     if (s_mode1_active) {
         note_audio_set_enabled(true);
     }
-    s_mode1_last_action = -1;
-    s_mode1_last_note_ms = 0;
+    mode1_reset_trigger();
     s_mode3_active = mode_name[5] == '3';
     s_mode2_active = mode_name[5] == '2';
 

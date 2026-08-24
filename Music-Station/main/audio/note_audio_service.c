@@ -1,5 +1,6 @@
 #include "note_audio_service.h"
 
+#include "audio_service.h"
 #include "bsp_audio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -30,11 +31,23 @@ static void note_audio_task(void *arg)
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         const note_wav_t *note = s_note;
         uint32_t generation = s_generation;
-        for (const uint8_t *data = note->start + 44; data < note->end && generation == s_generation;) {
-            size_t size = (size_t)(note->end - data);
-            if (size > 4096) size = 4096;
-            if (bsp_audio_speaker_write(data, size) != ESP_OK) break;
-            data += size;
+        const uint8_t *data = note->start + 44;
+        size_t frames = (size_t)(note->end - data) / 2U;
+        uint32_t phase_q16 = 0;
+        const uint32_t step_q16 = (16000U << 16) / 44100U;
+        while ((phase_q16 >> 16) < frames && generation == s_generation) {
+            int16_t stereo[128 * 2];
+            size_t count = 0;
+            while (count < 128U && (phase_q16 >> 16) < frames) {
+                size_t index = phase_q16 >> 16;
+                int16_t sample = (int16_t)((uint16_t)data[index * 2U] |
+                                           ((uint16_t)data[index * 2U + 1U] << 8));
+                stereo[count * 2U] = sample;
+                stereo[count * 2U + 1U] = sample;
+                ++count;
+                phase_q16 += step_q16;
+            }
+            if (bsp_audio_speaker_write(stereo, count * sizeof(stereo[0])) != ESP_OK) break;
         }
     }
 }
@@ -42,6 +55,7 @@ static void note_audio_task(void *arg)
 void note_audio_play(uint8_t band, uint8_t note)
 {
     if (!s_enabled || band >= 3 || note >= 7 || bsp_audio_speaker_init(44100, s_volume) != ESP_OK) return;
+    (void)audio_service_set_home_bgm_enabled(false);
     s_note = &s_notes[band][note];
     s_generation++;
     if (s_task == NULL && xTaskCreate(note_audio_task, "note_audio", 4096, NULL, 4, &s_task) != pdPASS) {

@@ -25,6 +25,8 @@ void ai_uart_service_select_mode(ai_uart_mode_t mode, uint32_t poll_interval_ms)
     portENTER_CRITICAL(&s_lock);
     s_mode = mode;
     s_interval_ms = poll_interval_ms;
+    /* A screen must not act on the previous capture mode while SET is in flight. */
+    s_has_snapshot = false;
     portEXIT_CRITICAL(&s_lock);
 }
 
@@ -75,8 +77,10 @@ static void ai_uart_task(void *arg)
         ai_uart_snapshot_t incoming;
         while (ai_uart_master_poll_snapshot(&incoming)) {
             portENTER_CRITICAL(&s_lock);
-            s_snapshot = incoming;
-            s_has_snapshot = true;
+            if (incoming.mode == s_mode) {
+                s_snapshot = incoming;
+                s_has_snapshot = true;
+            }
             portEXIT_CRITICAL(&s_lock);
         }
         vTaskDelay(pdMS_TO_TICKS(5));
