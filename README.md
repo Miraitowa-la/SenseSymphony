@@ -73,6 +73,8 @@ SenseSymphony/
 | `Mobile-APP` | HBuilderX / uni-app、Vue 3、Android 真机或模拟环境 |
 | `3D-Model` | SolidWorks（编辑）、切片软件或 3D 查看器（STL） |
 
+`Vision-Node` 与 `Music-Station` 均已提交面向 ESP32-P4 开发板的 `sdkconfig` 基线配置，以便在相同 ESP-IDF 版本下复现显示、摄像头、音频和分区等构建选项。
+
 ## 构建与运行
 
 ### 1. 构建视觉节点
@@ -97,7 +99,7 @@ idf.py build
 idf.py -p <serial-port> flash monitor
 ```
 
-> 首次构建前，请参考上述 Waveshare 官方文档完成 ESP32-P4-Module-DEV-KIT-C 的驱动、串口和 ESP-IDF v5.5.4 环境配置。
+> 两个 ESP-IDF 子项目均包含已验证的 `sdkconfig`。首次构建前，请参考上述 Waveshare 官方文档完成 ESP32-P4-Module-DEV-KIT-C 的驱动、串口和 ESP-IDF v5.5.4 环境配置；除非需要调整硬件或功能选项，否则无需执行 `idf.py menuconfig`。修改配置后应确认不含设备凭据或密钥，再随代码一并提交。
 
 ### 3. 运行移动端 App
 
@@ -119,7 +121,7 @@ idf.py -p <serial-port> flash monitor
 欢迎提交 Issue 和 Pull Request。提交前请注意：
 
 - 不要提交 `build/`、`unpackage/` 中的缓存、编译产物、安装包、签名证书或本地 IDE 缓存；仅 `Mobile-APP/unpackage/res/icons/` 是打包所需的图标源资源，应保留并提交。
-- ESP-IDF 项目应提交源代码、`CMakeLists.txt`、分区表和依赖锁定文件；请勿提交本机生成的 `sdkconfig`。
+- ESP-IDF 项目应提交源代码、`CMakeLists.txt`、分区表、依赖锁定文件和仓库提供的 `sdkconfig` 基线；不要提交 `sdkconfig.old`、构建目录或含设备凭据、令牌、私钥的本地配置。
 - 变更蓝牙或 UART 协议时，请同步检查主机端与移动端的协议兼容性。
 - 新增资源时，请确认其拥有可公开发布的版权与授权。
 
